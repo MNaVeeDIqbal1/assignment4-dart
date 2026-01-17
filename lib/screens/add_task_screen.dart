@@ -1,90 +1,147 @@
-import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
-import 'package:assignment4/models/task_model.dart';
+import 'package:uuid/uuid.dart';
+import '../models/task_model.dart';
 
-class AddTaskScreen extends StatefulWidget{
+class AddTaskScreen extends StatefulWidget {
   final Task? existingTask;
+
   const AddTaskScreen({super.key, this.existingTask});
+
   @override
   State<AddTaskScreen> createState() => _AddTaskScreenState();
 }
 
-class _AddTaskScreenState extends State<AddTaskScreen>{
+class _AddTaskScreenState extends State<AddTaskScreen> {
   late TextEditingController _titleController;
-  late TextEditingController _descriptionController;
+  late TextEditingController _descController;
   DateTime? _selectedDate;
+  final _uuid = const Uuid();
 
   @override
-  void initState(){
+  void initState() {
     super.initState();
-    _titleController = TextEditingController(text: widget.existingTask?.title?? '');
-    _descriptionController = TextEditingController(text: widget.existingTask?.description?? '');
+    _titleController = TextEditingController(
+      text: widget.existingTask?.title ?? '',
+    );
+    _descController = TextEditingController(
+      text: widget.existingTask?.description ?? '',
+    );
+    // CRITICAL: Load the existing date if we are editing
+    _selectedDate = widget.existingTask?.dueDate;
   }
 
-  Future<void> _pickDate() async{
-    final DateTime? picked = await showDatePicker(
+  void _presentDatePicker() async {
+    final pickedDate = await showDatePicker(
       context: context,
-      initialDate: DateTime.now(),
-      firstDate: DateTime.now(),
-      lastDate: DateTime(2100),
+      initialDate: _selectedDate ?? DateTime.now(),
+      firstDate: DateTime(2024),
+      lastDate: DateTime(2030),
     );
-    if(picked!= null)
-    {
+
+    if (pickedDate != null) {
       setState(() {
-        _selectedDate = picked;
+        _selectedDate = pickedDate;
       });
     }
   }
 
   @override
-  Widget build(BuildContext context)
-  {
+  void dispose() {
+    _titleController.dispose();
+    _descController.dispose();
+    super.dispose();
+  }
+
+  void _save() {
+    final title = _titleController.text.trim();
+    final description = _descController.text.trim();
+
+    if (title.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Please enter a title")),
+      );
+      return;
+    }
+
+    final task = Task(
+      id: widget.existingTask?.id ?? _uuid.v4(),
+      title: title,
+      description: description,
+      dueDate: _selectedDate, // Now correctly passed
+      isCompleted: widget.existingTask?.isCompleted ?? false,
+      isStarred: widget.existingTask?.isStarred ?? false,
+    );
+
+    Navigator.pop(context, task);
+  }
+
+  @override
+  Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Add New Task'),
+        title: Text(widget.existingTask == null ? 'New Task' : 'Edit Task'),
+        backgroundColor: Theme.of(context).colorScheme.inversePrimary,
       ),
       body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          children: [
-            TextField(
-              controller: _titleController,
-              decoration: const InputDecoration(labelText: 'Task Title',),
-              ),
-            const SizedBox(height: 10.0),
-            TextField(
-              controller: _descriptionController,
-              decoration: const InputDecoration(labelText: 'Description'),
-            ),
-            const SizedBox(height: 20),
-            Row(
-              children: [
-                Text(_selectedDate == null ?
-                'No Data Chosen' :
-                "Due Date:" '${_selectedDate!.day}/${_selectedDate!.month}/${_selectedDate!.year}'),
-                const Spacer(),
-                TextButton(
-                  onPressed: _pickDate,
-                  child: const Text('Choose Date'),
+        padding: const EdgeInsets.all(20.0),
+        child: SingleChildScrollView( // Added scroll view to prevent keyboard overlap
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              TextField(
+                controller: _titleController,
+                autofocus: true,
+                decoration: const InputDecoration(
+                  labelText: 'What needs to be done?',
+                  border: OutlineInputBorder(),
                 ),
-              ],
-            ),
-            const Spacer(),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(minimumSize: const Size(double.infinity,50)),
-              onPressed: (){
-                if(_titleController.text.isNotEmpty){
-                  final newTask = Task(
-                    id: DateTime.now().toString(),
-                    title: _titleController.text,
-                      description: _descriptionController.text,
-                      dueDate: _selectedDate,
-                  );
-                  Navigator.pop(context,newTask);
-                }
-              }, child: const Text('Save Task'),
-            ),
-          ],
+              ),
+              const SizedBox(height: 20),
+              TextField(
+                controller: _descController,
+                decoration: const InputDecoration(
+                  labelText: 'Notes (Optional)',
+                  border: OutlineInputBorder(),
+                ),
+                maxLines: 3,
+              ),
+              const SizedBox(height: 20),
+
+              // --- DATE PICKER SECTION ---
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.calendar_today, color: Colors.blueAccent),
+                title: Text(
+                  _selectedDate == null
+                      ? 'No Date Chosen!'
+                      : 'Due Date: ${_selectedDate!.day}/${_selectedDate!.month}/${_selectedDate!.year}',
+                  style: const TextStyle(fontWeight: FontWeight.w500),
+                ),
+                trailing: TextButton(
+                  onPressed: _presentDatePicker,
+                  child: const Text('Choose Date', style: TextStyle(fontWeight: FontWeight.bold)),
+                ),
+              ),
+              // ---------------------------
+
+              const SizedBox(height: 30),
+              SizedBox(
+                width: double.infinity,
+                height: 50,
+                child: ElevatedButton.icon(
+                  onPressed: _save,
+                  icon: const Icon(Icons.cloud_upload),
+                  label: const Text('SAVE TO CLOUD',
+                      style: TextStyle(fontWeight: FontWeight.bold)
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.blueAccent,
+                    foregroundColor: Colors.white,
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
